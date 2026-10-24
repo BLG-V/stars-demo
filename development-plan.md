@@ -2,7 +2,7 @@
 
 ## 1. 执行原则
 
-当前工作台已于 2026-10-24 发布到 `20261024T093929Z-workbench`，本批本地 API 22/22、扩展 Playwright 及质量检查通过，云库 004 和公网 MySQL 工作台 10 项烟测通过。本批只重启 Stars，未修改或 reload Nginx；真实模型调用为 0，真实 SMTP、Cloudflare 和麦克风未复测，详见 [本批生产验收](docs/qa/production-workbench-2026-10-24.md)。
+当前工作台已于 2026-10-24 发布到 `20261024T123111Z-techworkbench-94ec577`（代码 `94ec577`）；本地 API 22/22、扩展 Playwright 及质量检查通过。云库 004 和公网 MySQL 工作台 10 项烟测属于前批 `20261024T093929Z-workbench`；本次只重启 Stars，未修改或 reload Nginx，HTTPS、健康检查与静态产物一致性已复核。真实模型调用为 0，真实 SMTP、Cloudflare 和麦克风未复测，见 [本次发布记录](docs/qa/production-techworkbench-2026-10-24.md)。
 
 仓库采用 Vite + React 工作台和独立 Node API。生产地址为 [https://39.107.41.101/](https://39.107.41.101/)。此前审计修复批次的 19 项 API/存储测试、延迟 mock 重连及 Qwen3.8-flash 三文件生成、预览、刷新恢复和隔离备份恢复记录继续保留；这些历史证据不算作本批重新执行的模型验收。每一步需有可复核产物，并遵循 `requirements.md` 的权限边界和编码规则。
 
@@ -17,8 +17,8 @@
 | 身份 | HttpOnly Cookie + Node `scrypt` 密码哈希 + SHA-256 会话 token 摘要（当前） | 生产 Cookie Secure；生产哈希参数、限流和会话清理待安全评审 |
 | 流式 | 本地已实现计划确认、SSE 事件持久化与重放、候选文件审核 | `planId` 为幂等键；前端以保存事件 ID 自动恢复观察，限 240 秒；取消、限流及完整工具执行未实现 |
 | 预览 | `iframe sandbox="allow-scripts"` + `srcDoc` | 限制在静态项目文件，不执行服务端代码 |
-| 测试 | 本批本地 22 项 API/存储、扩展 Playwright、lint、typecheck、format:check、build 通过；公网工作台 10 项烟测通过 | typecheck 仅覆盖 schemas 和工具配置；本批零真实模型调用，SMTP/Cloudflare/真实麦克风未复测 |
-| 部署 | IP HTTPS 已上线，当前 release `20261024T093929Z-workbench` | 004 迁移及新表应用账号读探针通过；只重启 Stars，保留旧 release；此前 Qwen/SMTP 记录为历史批次 |
+| 测试 | 本地 22 项 API/存储、扩展 Playwright、lint、typecheck、format:check、build 通过；新版公网 HTTPS、健康、匿名权限与产物一致性已复核 | 前批 MySQL 10 项烟测不可替代本次真实生成验收；typecheck 仅覆盖 schemas 和工具配置；本次零真实模型调用，SMTP/Cloudflare/真实麦克风未复测 |
+| 部署 | IP HTTPS 已上线，当前 release `20261024T123111Z-techworkbench-94ec577` | 004 迁移及新表读探针属于前批；本次只重启 Stars，保留 `20261024T093929Z-workbench` 用于回滚；此前 Qwen/SMTP 记录为历史批次 |
 
 CI 使用 Node 24；部署前核实实际 Node 版本与锁定依赖的兼容性，并记录差异，不能无记录切换运行时。
 
@@ -391,13 +391,13 @@ SSE 建立前校验会话和项目所有权。事件带递增 `id` 和运行编�
 
 ### 7.0 当前生产部署状态（2026-10-24）
 
-当前 `/opt/stars-demo-release` 指向 `/opt/stars-demo-releases/20261024T093929Z-workbench`，旧 `/opt/stars-demo-releases/20261024-email-verification` 保留。云库已存在 002/003，本批补齐 004；只运行一个 Stars API 进程。公网工作台 10 项烟测通过，本批不执行真实模型生成。`deploy/` 的 Nginx/systemd 文件仍为脱敏参考模板，不冒充生产配置副本。
+当前 `/opt/stars-demo-release` 指向 `/opt/stars-demo-releases/20261024T123111Z-techworkbench-94ec577`；上一版 `/opt/stars-demo-releases/20261024T093929Z-workbench` 保留回滚。云库 002/003/004 均已在此前批次应用；本次无迁移，仍只运行一个 Stars API 进程。前批公网工作台 10 项 MySQL 烟测是历史证据，本次不执行真实模型生成。`deploy/` 的 Nginx/systemd 文件仍为脱敏参考模板，不冒充生产配置副本。
 
 - 生产网址：[https://39.107.41.101/](https://39.107.41.101/)；HTTP 会跳转至 HTTPS，线上健康状态报告 MySQL 可用、`stubModel=false`。
 - Let's Encrypt IP 证书为短期证书，验收时剩余有效期约 6 天 16 小时。Certbot 自动续期 timer、dry-run 和 Nginx 部署 hook 已通过验证。
-- 仅重启 `stars-demo.service`，PID `89662 → 92536`，继续监听 `127.0.0.1:8787`；本批 Nginx 配置未改、未 reload。Firestone `127.0.0.1:18573` 检查返回 200，容器未重启。
+- 本次仅重启 `stars-demo.service`，切换后 PID `93710`，继续监听 `127.0.0.1:8787`；Nginx 配置未改、未 reload。Firestone `127.0.0.1:18573` 检查返回 200，容器未重启。
 - 生产环境保留 Qwen3.8-flash 配置和 180000ms 超时；此前三文件真实生成与更早四文件结果为历史验收。本批真实模型调用为 0，SMTP、Cloudflare 和真实麦克风未复测。
-- 新 release 补齐 `deploy/backup_stars.py`，修复旧邮箱验证码 release 遗漏脚本造成的备份服务失败；新加密备份成功。此前隔离恢复演练保留，后续继续安全加固和备份密钥恢复演练；本批临时数据清理结果见独立生产报告。
+- 本次 Stars 专属加密备份成功，备份脚本 `--check` 通过；上一版与更早的隔离恢复演练继续保留，后续继续安全加固和备份密钥恢复演练。发布时创建的临时源码 clone 已在确认与运行 release 分离后清理，未删除旧 release 或其他项目。
 
 ### 7.1 生产配置与后续安全加固
 
@@ -434,7 +434,7 @@ SSE 建立前校验会话和项目所有权。事件带递增 `id` 和运行编�
 | 单元 | 路径校验、模型事件 schema、快照 diff、权限判定 | 边界输入和恶意路径均被拒绝 |
 | 接口 | 注册、登录、项目列表/创建/读取/重命名/软删除、文件编辑保存、SSE、快照恢复 | 状态码、错误码和归属校验正确；云 MySQL Stub 与生产 Qwen 文件写入、审计和重启/刷新恢复均已验收 |
 | 集成 | MySQL 迁移、应用账号权限、审批事务、事件重放 | 原有云库冒烟为历史证据；本轮审批/重放本地通过，前端有限自动恢复已通过延迟 mock；002 云库执行、审批事务和重启恢复均已验证 |
-| 浏览器 | 注册→创建→生成→预览→刷新→恢复 | 最新生产 Qwen3.8-flash 3 文件主流程在公网环境通过，无浏览器错误 |
+| 浏览器 | 注册→创建→生成→预览→刷新→恢复 | 前批 Qwen3.8-flash 3 文件主流程在公网环境通过，无浏览器错误；本次发布未重跑真实模型 |
 | 工作台 | Dashboard→输入需求→Good path→Agent 事件→文件树→App Viewer | 状态、角色、文件和预览均可观察 |
 | 真实交互 | 预览页面按钮点击前后文本变化 | 变化来自生成应用脚本，不是工作台伪造 |
 | 资源校验 | 外链、favicon、OG 图片、平台 badge 扫描 | 非 allowlist 资源被移除或阻止 |
@@ -460,7 +460,7 @@ SSE 建立前校验会话和项目所有权。事件带递增 `id` 和运行编�
 
 ## 10. 交付顺序和停止条件
 
-当前 Demo 已达到公网可测试状态，入口为 `https://39.107.41.101/`。最新工作台 release、004 迁移及公网 10 项烟测已完成，真实模型调用为 0；邮箱验证码请求和真实生成记录保留为历史批次。以下运维事项仍须完成：
+当前 Demo 已达到公网可测试状态，入口为 `https://39.107.41.101/`。最新科技工作台 release `20261024T123111Z-techworkbench-94ec577` 已上线；004 迁移及公网 10 项 MySQL 烟测属于前批，本次真实模型调用为 0；邮箱验证码请求和真实生成记录保留为历史批次。以下运维事项仍须完成：
 
 1. 完成生产安全加固与复核。
 2. 持续执行数据库隔离恢复演练并记录结果，补齐备份密钥恢复演练。
@@ -470,7 +470,7 @@ SSE 建立前校验会话和项目所有权。事件带递增 `id` 和运行编�
 
 ### 11.1 来源与范围
 
-本节实现已随 `20261024T093929Z-workbench` 上线，文件夹、附件、语音、账户菜单和认证界面纳入当前 release。云库 004 与公网工作台 10 项烟测已通过，本批没有真实模型调用，未复测真实 SMTP、Cloudflare 或麦克风；此前三文件生成与验证码请求仍按历史批次保留。
+本节是 `20261024T093929Z-workbench` 的历史发布记录：文件夹、当时的附件入口、语音、账户菜单和认证界面在该版上线。云库 004 与公网工作台 10 项烟测属于该版；当前科技主题与文件/目录附件菜单另见 [新版发布记录](docs/qa/production-techworkbench-2026-10-24.md)。前批没有真实模型调用，未复测真实 SMTP、Cloudflare 或麦克风；更早的三文件生成与验证码请求仍按各自批次保留。
 
 按 `C:/Users/V/.codex/skills/web-ui-pipeline/SKILL.md` 先读取工作台解析流程，再根据用户提供的截图提取可见结构：侧边导航、顶部品牌与状态、流程指示器、Agent 编排区、自然语言 Composer、发现/项目/模板标签、生成时间线、文件树和 App Viewer。复刻范围限定为布局、组件状态和视觉 token；不复制 Atoms 品牌标识、外部字体、favicon、OG 图或私有实现。
 
@@ -568,4 +568,4 @@ stars-demo/
 - 原文件不单独保存；合并文本会作为项目需求/消息持久化并发送给已配置模型。此能力不等价于二进制解析或无限制代码仓库导入。
 - 使用现有 JSX 风格，不重排无关文件、不清除其他项目数据；锁定导入过程的冲突操作并在退出或上下文变化时防止过期结果回写。
 - 菜单有语义角色、可见 focus 与合理焦点返回；动效仅为短暂状态反馈，尊重 reduced-motion，不引入 Remotion/GSAP。
-- 不改生产端口、数据库迁移、Nginx 或其他项目服务。本轮用户授权为 GitHub 同步，新的主题与目录入口不自动计入上批公网验收。
+- 本次发布未改生产端口、数据库迁移、Nginx 或其他项目服务。新的主题与目录入口已随 `20261024T123111Z-techworkbench-94ec577` 发布；本地回归和上批公网 MySQL 烟测不能替代本次真实模型、SMTP 或 Cloudflare 验收。

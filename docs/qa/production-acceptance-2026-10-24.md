@@ -3,9 +3,9 @@
 日期：2026-10-24  
 地址：[https://39.107.41.101/](https://39.107.41.101/)
 
-## 当前工作台发布批次
+## 前批工作台发布记录
 
-最新 release 为 `/opt/stars-demo-releases/20261024T093929Z-workbench`，旧邮箱验证码 release 保留。已补齐云库 `004_folders.sql` 并只重启 Stars；本批 Nginx 未修改、未 reload，Firestone 检查仍返回 200。本批公网 Playwright 10 项工作台烟测通过，真实模型调用为 0、浏览器错误为 0；未复测真实 SMTP、Cloudflare 或麦克风。发布、备份修复、测试数据清理状态及产物见 [工作台生产验收](production-workbench-2026-10-24.md)。
+当时的 release 为 `/opt/stars-demo-releases/20261024T093929Z-workbench`，旧邮箱验证码 release 保留。已补齐云库 `004_folders.sql` 并只重启 Stars；本批 Nginx 未修改、未 reload，Firestone 检查仍返回 200。本批公网 Playwright 10 项工作台烟测通过，真实模型调用为 0、浏览器错误为 0；未复测真实 SMTP、Cloudflare 或麦克风。发布、备份修复、测试数据清理状态及产物见 [工作台生产验收](production-workbench-2026-10-24.md)。当前科技主题与文件/目录附件菜单已另行发布，见 [新版发布记录](production-techworkbench-2026-10-24.md)。
 
 ## 以下为历史审计修复与邮箱验证码发布记录
 

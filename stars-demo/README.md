@@ -2,7 +2,7 @@
 
 Stars is an application workbench built with Vite, React, plain CSS and a Node HTTP API. It supports confirmed generation plans, candidate-file review, durable run events, snapshots, email verification, personal folders, project organization and account sessions.
 
-Production at [https://39.107.41.101/](https://39.107.41.101/) runs release `20261024T093929Z-workbench`. Its 10-check MySQL workbench smoke test passed without a real-model call; see [production report](../docs/qa/production-workbench-2026-10-24.md). Earlier acceptance separately verified real Qwen generation and interactive previews. This repository also contains the newer neutral technology-workbench theme and local file/folder attachment menu; these additions need a separate deployment and are not covered by that production result.
+Production at [https://39.107.41.101/](https://39.107.41.101/) runs release `20261024T123111Z-techworkbench-94ec577` from code commit `94ec577`. This release includes the neutral technology-workbench theme and local file/folder attachment menu; see the [deployment report](../docs/qa/production-techworkbench-2026-10-24.md). The prior release's 10-check MySQL workbench smoke test and earlier real Qwen generation are separate historical evidence.
 
 ## Run
 
@@ -38,7 +38,7 @@ Deploy a single API process only. Startup marks leftover `running` records as `R
 
 ## Checks and deployment
 
-The prior deployed workbench passed lint, scoped typecheck, format checks, build, 22 API/storage tests and expanded Playwright. Current file/folder and theme checks are recorded separately in [attachment regression](../docs/qa/workbench-attachments-2026-10-24.md). Both Python acceptance scripts also passed syntax compilation. The delayed local mock browser test proves that refreshing during generation reconnects with the same plan ID and `Last-Event-ID >= 3`, reaches candidate review, and makes exactly one provider call. Preview monitoring uses an IIFE so valid app globals such as `report` and `original` do not collide. `npm test` runs syntax checks and API/storage suites. Browser tests use isolated JSON data with an explicit Stub or delayed local mock Provider; they do not establish new real-model or cloud-MySQL acceptance.
+The deployed code passed lint, scoped typecheck, format checks, build, 22 API/storage tests and expanded Playwright. File/folder and theme checks are recorded in [attachment regression](../docs/qa/workbench-attachments-2026-10-24.md); the new public deployment is recorded separately in the [deployment report](../docs/qa/production-techworkbench-2026-10-24.md). Both Python acceptance scripts also passed syntax compilation. The delayed local mock browser test proves that refreshing during generation reconnects with the same plan ID and `Last-Event-ID >= 3`, reaches candidate review, and makes exactly one provider call. Preview monitoring uses an IIFE so valid app globals such as `report` and `original` do not collide. `npm test` runs syntax checks and API/storage suites. Browser tests use isolated JSON data with an explicit Stub or delayed local mock Provider; they do not establish new real-model or cloud-MySQL acceptance.
 
 `test/model_acceptance.py` now follows both approval gates; only its syntax was checked in this revision, without a paid model call.
 
@@ -48,4 +48,4 @@ Sanitized Nginx/systemd reference templates are in `deploy/`; production uses a 
 
 ## Implementation boundary
 
-The API enforces ownership and never executes model-returned commands. Unconfigured generation fails unless an explicit development Stub is enabled; no UI animation substitutes for API success. Pending work includes run cancellation, broader typing/security checks, deployment and production verification of the new theme/folder-import UI, continued backup/key-recovery drills, rotation of exposed root/administrative credentials, and strict egress isolation. Style sources and permission boundaries are documented in `../requirements.md` and `../development-plan.md`.
+The API enforces ownership and never executes model-returned commands. Unconfigured generation fails unless an explicit development Stub is enabled; no UI animation substitutes for API success. Pending work includes run cancellation, broader typing/security checks, live-model and provider verification of this release, continued backup/key-recovery drills, rotation of exposed root/administrative credentials, and strict egress isolation. Style sources and permission boundaries are documented in `../requirements.md` and `../development-plan.md`.

@@ -1,12 +1,12 @@
 # Stars 工作台生产发布与烟测（2026-10-24）
 
-地址：[https://39.107.41.101/](https://39.107.41.101/)。本批发布文件夹、附件/语音入口、账户菜单及关联导航交互，使用公网 HTTPS 与云 MySQL 验证；不重复调用真实模型或发送验证码邮件。
+地址：[https://39.107.41.101/](https://39.107.41.101/)。本报告记录前批文件夹、附件/语音入口、账户菜单及关联导航交互的公网 HTTPS 与云 MySQL 验证；当时没有重复调用真实模型或发送验证码邮件。当前科技主题与文件/目录附件菜单的后续发布见 [新版记录](production-techworkbench-2026-10-24.md)。
 
 ## 发布与隔离范围
 
 | 项目 | 本批结果 |
 | --- | --- |
-| 当前 release | `/opt/stars-demo-releases/20261024T093929Z-workbench`，由 `/opt/stars-demo-release` 指向 |
+| 本批当时 release | `/opt/stars-demo-releases/20261024T093929Z-workbench`，当时由 `/opt/stars-demo-release` 指向；现保留为回滚版 |
 | 回滚保留 | `/opt/stars-demo-releases/20261024-email-verification` 保留，未删除 |
 | 服务 | 仅重启 `stars-demo.service`，PID `89662 → 92536`；继续只监听 `127.0.0.1:8787` |
 | Nginx | 本批未修改配置、未 reload；3 个关键配置哈希与发布前一致，沿用现有 Stars HTTPS 与代理配置 |
