@@ -18,11 +18,18 @@ async function request(path, options = {}) {
 }
 
 export function getSession() { return request('/me') }
-export function login(email, password) { return request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }) }
+export function login(email, password, turnstileToken = '') { return request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, turnstileToken }) }) }
 export function register(email, password) { return request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) }) }
+export function requestRegistrationCode(email, turnstileToken = '') { return request('/auth/register/request-code', { method: 'POST', body: JSON.stringify({ email, turnstileToken }) }) }
+export function verifyRegistration(email, code, password, turnstileToken = '') { return request('/auth/register/verify', { method: 'POST', body: JSON.stringify({ email, code, password, turnstileToken }) }) }
 export function logout() { return request('/auth/logout', { method: 'POST', body: '{}' }) }
 export function listProjects() { return request('/projects') }
-export function createProject(name, initialPrompt) { return request('/projects', { method: 'POST', body: JSON.stringify({ name, initialPrompt }) }) }
+export function createProject(name, initialPrompt, folderId = null) { return request('/projects', { method: 'POST', body: JSON.stringify({ name, initialPrompt, folderId }) }) }
+export function listFolders() { return request('/folders') }
+export function createFolder(name) { return request('/folders', { method: 'POST', body: JSON.stringify({ name }) }) }
+export function updateFolder(folderId, name) { return request(`/folders/${folderId}`, { method: 'PATCH', body: JSON.stringify({ name }) }) }
+export function removeFolder(folderId) { return request(`/folders/${folderId}`, { method: 'DELETE' }) }
+export function moveProjectToFolder(projectId, folderId) { return request(`/projects/${projectId}`, { method: 'PATCH', body: JSON.stringify({ folderId: folderId || null }) }) }
 export function getProject(projectId) { return request(`/projects/${projectId}`) }
 export function updateProject(projectId, name) { return request(`/projects/${projectId}`, { method: 'PATCH', body: JSON.stringify({ name }) }) }
 export function deleteProject(projectId) { return request(`/projects/${projectId}`, { method: 'DELETE' }) }

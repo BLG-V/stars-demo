@@ -4,6 +4,8 @@ import { createHash, randomBytes, randomUUID, scrypt as scryptCallback, timingSa
 import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { URL } from 'node:url'
+import nodemailer from 'nodemailer'
+import { appendFile } from 'node:fs/promises'
 import { createJsonStorage } from './storage/json.mjs'
 import { describeFileChanges, fileFingerprint } from './storage/file-changes.mjs'
 import { authInput, planInput, runInput } from './schemas.mjs'
@@ -17,6 +19,13 @@ const modelName = process.env.MODEL_NAME
 const configuredTimeoutMs = Number(process.env.MODEL_TIMEOUT_MS || 60000)
 const modelTimeoutMs = Math.min(Math.max(Number.isFinite(configuredTimeoutMs) ? configuredTimeoutMs : 60000, 1000), 180000)
 const modelConfigured = Boolean(modelBaseUrl && modelApiKey && modelName)
+const emailVerificationRequired = process.env.NODE_ENV === 'production' || process.env.REQUIRE_EMAIL_VERIFICATION === 'true'
+const smtpConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM)
+const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY || ''
+const turnstileRequired = process.env.TURNSTILE_REQUIRED === 'true' || (process.env.NODE_ENV === 'production' && Boolean(turnstileSecretKey))
+const verificationTtlMs = 10 * 60 * 1000
+const verificationResendMs = 60 * 1000
+let mailTransport
 const cookieName = 'stars_session'
 const dummyPasswordHash = 'scrypt$00000000000000000000000000000000$' + '0'.repeat(128)
 const maxBodyBytes = 512 * 1024
@@ -34,6 +43,29 @@ const storage = storageMode === 'mysql'
 const activeProjectRuns = new Set()
 const now = () => new Date().toISOString()
 const hashSessionToken = token => createHash('sha256').update(String(token)).digest('hex')
+const hashVerificationCode = code => createHash('sha256').update(String(code)).digest('hex')
+async function verifyTurnstileToken(token, remoteip) {
+  if (!turnstileRequired) return true
+  if (!turnstileSecretKey || !token) return false
+  try {
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ secret: turnstileSecretKey, response: token, remoteip }) })
+    if (!response.ok) return false
+    const result = await response.json()
+    return result.success === true
+  } catch { return false }
+}
+function getMailTransport() {
+  if (!smtpConfigured) return null
+  const secure = ['true', 'ssl'].includes(String(process.env.SMTP_SECURE || '').toLowerCase())
+  mailTransport ||= process.env.SMTP_CAPTURE_FILE ? nodemailer.createTransport({ streamTransport: true, newline: 'unix', buffer: true }) : nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure, auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD || '' } : undefined })
+  return mailTransport
+}
+async function sendVerificationEmail(email, code) {
+  const transport = getMailTransport()
+  if (!transport) throw new Error('EMAIL_NOT_CONFIGURED')
+  const info = await transport.sendMail({ from: process.env.SMTP_FROM, to: email, subject: 'Stars 注册验证码', text: `你的 Stars 注册验证码是 ${code}，10 分钟内有效。若非本人操作，请忽略此邮件。`, html: `<p>你的 Stars 注册验证码是：</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>验证码 10 分钟内有效。</p>` })
+  if (process.env.SMTP_CAPTURE_FILE && info.message) await appendFile(process.env.SMTP_CAPTURE_FILE, info.message)
+}
 function json(res, status, value, extra = {}) { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extra }); res.end(JSON.stringify(value)) }
 function error(res, status, code, message) { if (res.audit) res.audit.errorCode = code; return json(res, status, { error: { code, message, requestId: res.getHeader('x-request-id') } }) }
 function parseCookies(req) { const out = {}; for (const pair of (req.headers.cookie || '').split(';')) { const [key, ...rest] = pair.trim().split('='); if (key) out[key] = decodeURIComponent(rest.join('=') || '') }; return out }
@@ -174,7 +206,34 @@ async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost:' + port)
   if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { ok: true, storage: storage.kind, stubModel: allowStub })
   try {
+    if (url.pathname === '/api/auth/register/request-code' && req.method === 'POST') {
+      const body = await readBody(req); const email = String(body.email || '').trim().toLowerCase()
+      if (turnstileRequired && !await verifyTurnstileToken(String(body.turnstileToken || ''), req.socket.remoteAddress)) return error(res, 400, 'TURNSTILE_FAILED', '请完成 Cloudflare 人机验证后重试')
+      if (!authInput.shape.email.safeParse(email).success) return error(res, 400, 'REGISTRATION_ERROR', '注册信息不可用，请检查输入或尝试登录')
+      const existing = await storage.findUserByEmail(email); const previous = await storage.findEmailVerification(email)
+      if (!existing && (!previous || Date.now() - Date.parse(previous.sentAt) >= verificationResendMs)) {
+        if (!smtpConfigured) return error(res, 503, 'EMAIL_NOT_CONFIGURED', '邮箱验证服务尚未配置')
+        const code = String(randomBytes(3).readUIntBE(0, 3) % 1000000).padStart(6, '0')
+        const sentAt = now(); await sendVerificationEmail(email, code)
+        await storage.saveEmailVerification({ email, codeHash: hashVerificationCode(code), expiresAt: new Date(Date.now() + verificationTtlMs).toISOString(), attempts: 0, maxAttempts: 5, consumedAt: null, sentAt })
+      }
+      return json(res, 202, { ok: true, message: '如果邮箱可以注册，验证码已发送。' })
+    }
+    if (url.pathname === '/api/auth/register/verify' && req.method === 'POST') {
+      const body = await readBody(req); const parsed = authInput.safeParse(body); const code = String(body.code || '').trim()
+      if (turnstileRequired && !await verifyTurnstileToken(String(body.turnstileToken || ''), req.socket.remoteAddress)) return error(res, 400, 'TURNSTILE_FAILED', '请完成 Cloudflare 人机验证后重试')
+      if (!parsed.success || !/^\d{6}$/.test(code)) return error(res, 400, 'REGISTRATION_ERROR', '验证码或注册信息不可用')
+      const { email, password } = parsed.data; if (await storage.findUserByEmail(email)) { await hashPassword(password); return error(res, 400, 'REGISTRATION_ERROR', '注册信息不可用，请检查输入或尝试登录') }
+      const record = await storage.findEmailVerification(email); const valid = record && record.expiresAt > now() && !record.consumedAt && record.attempts < record.maxAttempts && record.codeHash === hashVerificationCode(code)
+      if (!valid) { await storage.incrementEmailVerificationAttempt(email); return error(res, 400, 'REGISTRATION_ERROR', '验证码或注册信息不可用') }
+      if (!await storage.consumeEmailVerification(email, hashVerificationCode(code), now())) return error(res, 400, 'REGISTRATION_ERROR', '验证码或注册信息不可用')
+      const user = { id: randomUUID(), email, passwordHash: await hashPassword(password), createdAt: now(), updatedAt: now() }
+      const token = randomBytes(32).toString('hex'); const createdUser = await storage.createUserAndSession(user, { id: randomUUID(), token: hashSessionToken(token), userId: user.id, expiresAt: new Date(Date.now() + 604800000).toISOString(), createdAt: now() })
+      if (!createdUser) return error(res, 400, 'REGISTRATION_ERROR', '注册信息不可用，请检查输入或尝试登录')
+      setSession(res, token); return json(res, 201, { user: publicUser(user) })
+    }
     if (url.pathname === '/api/auth/register' && req.method === 'POST') {
+      if (emailVerificationRequired) return error(res, 400, 'EMAIL_VERIFICATION_REQUIRED', '请先获取并填写邮箱验证码')
       const parsed = authInput.safeParse(await readBody(req))
       if (!parsed.success) return error(res, 400, 'REGISTRATION_ERROR', '注册信息不可用，请检查输入或尝试登录')
       const { email, password } = parsed.data
@@ -186,7 +245,7 @@ async function handle(req, res) {
       return json(res, 201, { user: publicUser(user) })
     }
     if (url.pathname === '/api/auth/login' && req.method === 'POST') {
-      const body = await readBody(req); const email = String(body.email || '').trim().toLowerCase(); const user = await storage.findUserByEmail(email)
+      const body = await readBody(req); if (turnstileRequired && !await verifyTurnstileToken(String(body.turnstileToken || ''), req.socket.remoteAddress)) return error(res, 400, 'TURNSTILE_FAILED', '请完成 Cloudflare 人机验证后重试'); const email = String(body.email || '').trim().toLowerCase(); const user = await storage.findUserByEmail(email)
       const passwordValid = await verifyPassword(String(body.password || ''), user?.passwordHash || dummyPasswordHash)
       if (!user || !passwordValid) return error(res, 401, 'INVALID_CREDENTIALS', '邮箱或密码错误')
       const token = randomBytes(32).toString('hex'); await storage.createSession({ id: randomUUID(), token: hashSessionToken(token), userId: user.id, expiresAt: new Date(Date.now() + 604800000).toISOString(), createdAt: now() }); setSession(res, token)
@@ -196,8 +255,33 @@ async function handle(req, res) {
     if (url.pathname === '/api/me' && req.method === 'GET') { const current = await getSession(req); return current && current.user ? json(res, 200, { user: publicUser(current.user) }) : error(res, 401, 'UNAUTHENTICATED', '请先登录') }
     const user = await requireUser(req, res); if (!user) return
     res.audit.userHash = hashSessionToken(user.id).slice(0, 16)
-    if (url.pathname === '/api/projects' && req.method === 'GET') return json(res, 200, { projects: await storage.listProjects(user.id) })
-    if (url.pathname === '/api/projects' && req.method === 'POST') { const body = await readBody(req); const name = String(body.name || '未命名项目').trim().slice(0, 80); const prompt = String(body.initialPrompt || '').trim().slice(0, 4000); const project = { id: randomUUID(), ownerId: user.id, name, initialPrompt: prompt, status: 'empty', createdAt: now(), updatedAt: now(), deletedAt: null }; await storage.createProject(project); return json(res, 201, { project }) }
+    const folderMatch = url.pathname.match(/^\/api\/folders(?:\/([^/]+))?$/)
+    if (folderMatch) {
+      if (req.method === 'GET' && !folderMatch[1]) return json(res, 200, { folders: await storage.listFolders(user.id) })
+      if (req.method === 'POST' && !folderMatch[1]) {
+        const body = await readBody(req); const name = String(body.name || '').trim()
+        if (!name || name.length > 80) return error(res, 400, 'INVALID_INPUT', '文件夹名称不能为空且不得超过 80 个字符')
+        const folder = { id: randomUUID(), ownerId: user.id, name, createdAt: now(), updatedAt: now(), deletedAt: null }
+        const created = await storage.createFolder(folder)
+        return created ? json(res, 201, { folder: created }) : error(res, 409, 'DUPLICATE_FOLDER', '同名文件夹已存在')
+      }
+      if (!folderMatch[1]) return error(res, 405, 'METHOD_NOT_ALLOWED', '不支持的文件夹操作')
+      const folder = await storage.getOwnedFolder(user.id, folderMatch[1]); if (!folder) return error(res, 404, 'NOT_FOUND', '资源不存在')
+      if (req.method === 'PATCH') {
+        const body = await readBody(req); const name = String(body.name || '').trim()
+        if (!name || name.length > 80) return error(res, 400, 'INVALID_INPUT', '文件夹名称不能为空且不得超过 80 个字符')
+        const updated = await storage.updateFolder(user.id, folder.id, name, now())
+        return updated ? json(res, 200, { folder: updated }) : error(res, 409, 'DUPLICATE_FOLDER', '同名文件夹已存在')
+      }
+      if (req.method === 'DELETE') return json(res, 200, { folder: await storage.deleteFolder(user.id, folder.id, now()) })
+      return error(res, 405, 'METHOD_NOT_ALLOWED', '不支持的文件夹操作')
+    }
+    if (url.pathname === '/api/projects' && req.method === 'GET') return json(res, 200, { projects: await storage.listProjects(user.id, url.searchParams.get('folderId')) })
+    if (url.pathname === '/api/projects' && req.method === 'POST') {
+      const body = await readBody(req); const name = String(body.name || '未命名项目').trim().slice(0, 80); const prompt = String(body.initialPrompt || '').trim().slice(0, 4000); const folderId = body.folderId ? String(body.folderId) : null
+      if (folderId && !await storage.getOwnedFolder(user.id, folderId)) return error(res, 404, 'NOT_FOUND', '资源不存在')
+      const project = { id: randomUUID(), ownerId: user.id, name, initialPrompt: prompt, folderId, status: 'empty', createdAt: now(), updatedAt: now(), deletedAt: null }; await storage.createProject(project); return json(res, 201, { project })
+    }
     const restoreMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/snapshots\/([^/]+)\/restore$/)
     if (restoreMatch && req.method === 'POST') {
       const project = await storage.getOwnedProject(user.id, restoreMatch[1]); if (!project) return error(res, 404, 'NOT_FOUND', '资源不存在')
@@ -246,7 +330,15 @@ async function handle(req, res) {
       const project = await storage.getOwnedProject(user.id, match[1]); if (!project) return error(res, 404, 'NOT_FOUND', '资源不存在'); const sub = match[2]
       res.audit.projectId = project.id
       if (!sub && req.method === 'PATCH') {
-        const body = await readBody(req); const name = String(body.name || '').trim()
+        const body = await readBody(req); const hasName = Object.prototype.hasOwnProperty.call(body, 'name'); const hasFolder = Object.prototype.hasOwnProperty.call(body, 'folderId')
+        if (!hasName && !hasFolder) return error(res, 400, 'INVALID_INPUT', '至少提供项目名称或文件夹')
+        if (hasFolder) {
+          const folderId = body.folderId ? String(body.folderId) : null
+          const updated = await storage.assignProjectToFolder(user.id, project.id, folderId, now())
+          if (!updated) return error(res, 404, 'NOT_FOUND', '资源不存在')
+          if (!hasName) return json(res, 200, { project: updated })
+        }
+        const name = String(body.name || '').trim()
         if (!name || name.length > 80) return error(res, 400, 'INVALID_INPUT', '项目名称不能为空且不得超过 80 个字符')
         const updated = await storage.updateProject(user.id, project.id, name, now())
         return updated ? json(res, 200, { project: updated }) : error(res, 404, 'NOT_FOUND', '资源不存在')

@@ -6,3 +6,6 @@ dist/
 data/
 *.log
 coverage/
+
+__pycache__/
+*.py[cod]

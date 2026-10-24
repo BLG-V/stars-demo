@@ -1,0 +1,72 @@
+{
+  "deployedAt": "2026-10-24T09:53:19.764Z",
+  "baseUrl": "https://39.107.41.101",
+  "deployed": true,
+  "release": "/opt/stars-demo-releases/20261024T093929Z-workbench",
+  "previousRelease": "/opt/stars-demo-releases/20261024-email-verification",
+  "oldPid": "89662",
+  "newPid": "92536",
+  "health": {
+    "ok": true,
+    "storage": "mysql",
+    "stubModel": false
+  },
+  "backupServiceExitCode": 0,
+  "nginxReloaded": false,
+  "archiveSha256": "1f771a08550a302b54cb7424e3c8976cf2c57bb84317d90784b5e7d73642d1bf",
+  "cleanup": {
+    "removedSyntheticAccounts": 2,
+    "remainingSyntheticAccounts": 0,
+    "afterCleanup": {
+      "users": 3,
+      "projects": 1,
+      "folders": 0,
+      "projectFolders": 0
+    }
+  },
+  "finalChecks": {
+    "release": "/opt/stars-demo-releases/20261024T093929Z-workbench",
+    "releaseFilesMatch": true,
+    "runtimeConfigurationPreserved": true,
+    "nginxConfigUnchanged": true,
+    "starsService": {
+      "code": 0,
+      "output": "MainPID=92536\nActiveState=active\nSubState=running\nActiveEnterTimestamp=Sat 2026-10-24 17:43:51 CST"
+    },
+    "backupService": {
+      "code": 0,
+      "output": "Result=success\nExecMainStatus=0\nActiveState=inactive"
+    },
+    "otherProjectHttp": {
+      "code": 0,
+      "output": "200"
+    },
+    "health": {
+      "code": 0,
+      "output": "{\"ok\":true,\"storage\":\"mysql\",\"stubModel\":false}"
+    },
+    "containerStates": [
+      {
+        "name": "firestone-demo-frontend-1",
+        "running": true,
+        "startedAt": "2026-10-23T15:38:23.03738865Z"
+      },
+      {
+        "name": "firestone-demo-backend-1",
+        "running": true,
+        "startedAt": "2026-10-23T15:38:22.852087649Z"
+      },
+      {
+        "name": "mysql",
+        "running": true,
+        "startedAt": "2026-10-22T02:16:35.171540192Z"
+      }
+    ],
+    "listeners": [
+      "LISTEN 0      4096       127.0.0.1:18573      0.0.0.0:*    users:((\"docker-proxy\",pid=83060,fd=7))                                                                                             ",
+      "LISTEN 0      511        127.0.0.1:8787       0.0.0.0:*    users:((\"node\",pid=92536,fd=22))                                                                                                    "
+    ],
+    "uploadedTemporaryFilesRemoved": true
+  },
+  "realModelCalls": 0
+}

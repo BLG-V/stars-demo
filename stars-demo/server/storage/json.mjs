@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { describeFileChanges, fileFingerprint } from './file-changes.mjs'
 
-const emptyDb = () => ({ users: [], sessions: [], projects: [], files: [], messages: [], runs: [], fileChanges: [], snapshots: [] })
+const emptyDb = () => ({ users: [], sessions: [], emailVerifications: [], folders: [], projectFolders: [], projects: [], files: [], messages: [], runs: [], fileChanges: [], snapshots: [] })
 const copy = value => structuredClone(value)
 const requireIdleProject = (state, projectId) => {
   if (state.runs.some(run => run.projectId === projectId && ['running', 'review'].includes(run.status))) throw Object.assign(new Error('Project has an active run'), { code: 'PROJECT_BUSY' })
@@ -50,15 +50,71 @@ export function createJsonStorage(dataFile) {
       return { session: copy(session), user: copy(db.users.find(item => item.id === session.userId) || null) }
     },
     async createSession(session) { return mutate(state => { state.sessions.push(session); return session }) },
+    async findEmailVerification(email) { return copy(db.emailVerifications.find(item => item.email === email) || null) },
+    async saveEmailVerification(record) { return mutate(state => { state.emailVerifications = state.emailVerifications.filter(item => item.email !== record.email); state.emailVerifications.push(record); return record }) },
+    async consumeEmailVerification(email, codeHash, at) { return mutate(state => { const item = state.emailVerifications.find(item => item.email === email); if (!item || item.expiresAt <= at || item.codeHash !== codeHash || item.attempts >= item.maxAttempts) return false; item.consumedAt = at; return true }) },
+    async incrementEmailVerificationAttempt(email) { return mutate(state => { const item = state.emailVerifications.find(item => item.email === email); if (item) item.attempts += 1; return item?.attempts || 0 }) },
     async deleteSession(token) { return mutate(state => { state.sessions = state.sessions.filter(item => item.token !== token) }) },
-    async listProjects(userId) { return copy(db.projects.filter(item => item.ownerId === userId && !item.deletedAt).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) },
-    async createProject(project) { return mutate(state => { state.projects.push(project); return project }) },
+    async listFolders(userId) { return copy(db.folders.filter(item => item.ownerId === userId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) },
+    async getOwnedFolder(userId, folderId) { return copy(db.folders.find(item => item.id === folderId && item.ownerId === userId) || null) },
+    async createFolder(folder) {
+      return mutate(state => {
+        if (state.folders.some(item => item.ownerId === folder.ownerId && item.name.toLowerCase() === folder.name.toLowerCase())) return null
+        state.folders.push(folder)
+        return folder
+      })
+    },
+    async updateFolder(userId, folderId, name, at) {
+      return mutate(state => {
+        const folder = state.folders.find(item => item.id === folderId && item.ownerId === userId)
+        if (!folder) return null
+        if (folder.name === name) return folder
+        if (state.folders.some(item => item.id !== folderId && item.ownerId === userId && item.name.toLowerCase() === name.toLowerCase())) return null
+        folder.name = name
+        folder.updatedAt = at
+        return folder
+      })
+    },
+    async deleteFolder(userId, folderId, at) {
+      return mutate(state => {
+        const index = state.folders.findIndex(item => item.id === folderId && item.ownerId === userId)
+        if (index < 0) return null
+        const [folder] = state.folders.splice(index, 1)
+        state.projectFolders = state.projectFolders.filter(item => item.folderId !== folderId)
+        for (const project of state.projects.filter(item => item.ownerId === userId && item.folderId === folderId)) project.folderId = null
+        return { ...folder, deletedAt: at }
+      })
+    },
+    async listProjects(userId, folderId = null) {
+      const assignments = new Map(db.projectFolders.map(item => [item.projectId, item.folderId]))
+      return copy(db.projects.filter(item => item.ownerId === userId && !item.deletedAt).map(project => ({ ...project, folderId: assignments.get(project.id) || project.folderId || null })).filter(project => folderId == null || project.folderId === folderId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
+    },
+    async createProject(project) {
+      return mutate(state => {
+        if (project.folderId && !state.folders.some(item => item.id === project.folderId && item.ownerId === project.ownerId)) return null
+        state.projects.push({ ...project, folderId: project.folderId || null })
+        if (project.folderId) state.projectFolders.push({ projectId: project.id, folderId: project.folderId, assignedAt: project.updatedAt })
+        return project
+      })
+    },
     async updateProject(userId, projectId, name, at) {
       return mutate(state => {
         const project = state.projects.find(item => item.id === projectId && item.ownerId === userId && !item.deletedAt)
         if (!project) return null
         project.name = name
         project.updatedAt = at
+        return project
+      })
+    },
+    async assignProjectToFolder(userId, projectId, folderId, at) {
+      return mutate(state => {
+        const project = state.projects.find(item => item.id === projectId && item.ownerId === userId && !item.deletedAt)
+        if (!project) return null
+        if (folderId && !state.folders.some(item => item.id === folderId && item.ownerId === userId)) return null
+        state.projectFolders = state.projectFolders.filter(item => item.projectId !== projectId)
+        project.folderId = folderId || null
+        project.updatedAt = at
+        if (folderId) state.projectFolders.push({ projectId, folderId, assignedAt: at })
         return project
       })
     },

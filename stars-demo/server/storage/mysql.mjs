@@ -5,7 +5,8 @@ import { describeFileChanges, fileFingerprint } from './file-changes.mjs'
 const iso = value => value instanceof Date ? value.toISOString() : value
 const userRow = row => row && ({ id: row.id, email: row.email, passwordHash: row.password_hash, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at) })
 const sessionRow = row => row && ({ id: row.id, token: row.token, userId: row.user_id, expiresAt: iso(row.expires_at), createdAt: iso(row.created_at) })
-const projectRow = row => row && ({ id: row.id, ownerId: row.owner_id, name: row.name, initialPrompt: row.initial_prompt, status: row.status, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), deletedAt: iso(row.deleted_at) })
+const projectRow = row => row && ({ id: row.id, ownerId: row.owner_id, name: row.name, initialPrompt: row.initial_prompt, status: row.status, folderId: row.folder_id || null, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), deletedAt: iso(row.deleted_at) })
+const folderRow = row => row && ({ id: row.id, ownerId: row.owner_id, name: row.name, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at) })
 const fileRow = row => ({ id: row.id, projectId: row.project_id, path: row.path, content: row.content, contentHash: row.content_hash, updatedByRunId: row.updated_by_run_id, updatedAt: iso(row.updated_at) })
 const messageRow = row => ({ id: row.id, projectId: row.project_id, role: row.role, content: row.content, runId: row.run_id, createdAt: iso(row.created_at) })
 const runRow = row => ({ id: row.id, projectId: row.project_id, status: row.status, model: row.model, promptHash: row.prompt_hash, errorCode: row.error_code, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.payload != null ? { details: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload } : {}) })
@@ -42,7 +43,7 @@ export async function createMysqlStorage(databaseUrl, mysqlModule) {
     kind: 'mysql',
     async initialize() {
       if (process.env.STARS_SKIP_MIGRATIONS === 'true') return
-      for (const file of ['001_initial.sql', '002_run_states.sql']) {
+      for (const file of ['001_initial.sql', '002_run_states.sql', '003_email_verifications.sql', '004_folders.sql']) {
         const migration = await readFile(fileURLToPath(new URL('../migrations/' + file, import.meta.url)), 'utf8')
         for (const statement of migration.split(';').map(value => value.trim()).filter(Boolean)) await pool.query(statement)
       }
@@ -69,17 +70,75 @@ export async function createMysqlStorage(databaseUrl, mysqlModule) {
       return row ? { session: sessionRow(row), user: { id: row.joined_user_id, email: row.email, passwordHash: row.password_hash, createdAt: iso(row.user_created_at), updatedAt: iso(row.user_updated_at) } } : null
     },
     async createSession(session) { await pool.execute('INSERT INTO sessions (id,token,user_id,expires_at,created_at) VALUES (?,?,?,?,?)', [session.id,session.token,session.userId,session.expiresAt,session.createdAt]); return session },
+    async findEmailVerification(email) { const [rows] = await pool.execute('SELECT * FROM email_verifications WHERE email=? LIMIT 1', [email]); const row = rows[0]; return row ? { email: row.email, codeHash: row.code_hash, expiresAt: iso(row.expires_at), attempts: row.attempts, maxAttempts: row.max_attempts, consumedAt: iso(row.consumed_at), sentAt: iso(row.sent_at) } : null },
+    async saveEmailVerification(record) { await pool.execute('INSERT INTO email_verifications (email,code_hash,expires_at,attempts,max_attempts,consumed_at,sent_at) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE code_hash=VALUES(code_hash),expires_at=VALUES(expires_at),attempts=VALUES(attempts),max_attempts=VALUES(max_attempts),consumed_at=NULL,sent_at=VALUES(sent_at)', [record.email,record.codeHash,record.expiresAt,record.attempts,record.maxAttempts,null,record.sentAt]); return record },
+    async consumeEmailVerification(email, codeHash, at) { const [result] = await pool.execute('UPDATE email_verifications SET consumed_at=? WHERE email=? AND code_hash=? AND expires_at>? AND consumed_at IS NULL AND attempts<max_attempts', [at,email,codeHash,at]); return result.affectedRows === 1 },
+    async incrementEmailVerificationAttempt(email) { const [result] = await pool.execute('UPDATE email_verifications SET attempts=attempts+1 WHERE email=? AND consumed_at IS NULL AND attempts<max_attempts', [email]); return result.affectedRows },
     async deleteSession(token) { await pool.execute('DELETE FROM sessions WHERE token=?', [token]) },
-    async listProjects(userId) { const [rows] = await pool.execute('SELECT * FROM projects WHERE owner_id=? AND deleted_at IS NULL ORDER BY updated_at DESC', [userId]); return rows.map(projectRow) },
+    async listFolders(userId) { const [rows] = await pool.execute('SELECT * FROM folders WHERE owner_id=? ORDER BY updated_at DESC', [userId]); return rows.map(folderRow) },
+    async getOwnedFolder(userId, folderId) { const [rows] = await pool.execute('SELECT * FROM folders WHERE id=? AND owner_id=? LIMIT 1', [folderId, userId]); return folderRow(rows[0]) || null },
+    async createFolder(folder) {
+      try { await pool.execute('INSERT INTO folders (id,owner_id,name,created_at,updated_at) VALUES (?,?,?,?,?)', [folder.id,folder.ownerId,folder.name,folder.createdAt,folder.updatedAt]); return folder }
+      catch (error) { if (error.code === 'ER_DUP_ENTRY') return null; throw error }
+    },
+    async updateFolder(userId, folderId, name, at) {
+      try {
+        const [existing] = await pool.execute('SELECT * FROM folders WHERE id=? AND owner_id=? LIMIT 1', [folderId,userId])
+        if (!existing.length) return null
+        if (existing[0].name === name) return folderRow(existing[0])
+        const [result] = await pool.execute('UPDATE folders SET name=?,updated_at=? WHERE id=? AND owner_id=?', [name,at,folderId,userId])
+        if (!result.affectedRows) return null
+        const [rows] = await pool.execute('SELECT * FROM folders WHERE id=? AND owner_id=? LIMIT 1', [folderId,userId])
+        return folderRow(rows[0]) || null
+      } catch (error) { if (error.code === 'ER_DUP_ENTRY') return null; throw error }
+    },
+    async deleteFolder(userId, folderId, at) {
+      return transaction(async connection => {
+        const [folders] = await connection.execute('SELECT * FROM folders WHERE id=? AND owner_id=? FOR UPDATE', [folderId,userId])
+        if (!folders.length) return null
+        await connection.execute('DELETE FROM project_folders WHERE folder_id=?', [folderId])
+        await connection.execute('DELETE FROM folders WHERE id=? AND owner_id=?', [folderId,userId])
+        return { ...folderRow(folders[0]), deletedAt: at }
+      })
+    },
+    async listProjects(userId, folderId = null) {
+      const params = [userId]
+      let query = 'SELECT p.*, pf.folder_id FROM projects p LEFT JOIN project_folders pf ON pf.project_id=p.id WHERE p.owner_id=? AND p.deleted_at IS NULL'
+      if (folderId != null) { query += ' AND pf.folder_id=?'; params.push(folderId) }
+      query += ' ORDER BY p.updated_at DESC'
+      const [rows] = await pool.execute(query, params)
+      return rows.map(projectRow)
+    },
     async createProject(project) {
-      await pool.execute('INSERT INTO projects (id,owner_id,name,initial_prompt,status,created_at,updated_at,deleted_at) VALUES (?,?,?,?,?,?,?,?)', [project.id,project.ownerId,project.name,project.initialPrompt,project.status,project.createdAt,project.updatedAt,project.deletedAt])
-      return project
+      return transaction(async connection => {
+        if (project.folderId) {
+          const [folders] = await connection.execute('SELECT id FROM folders WHERE id=? AND owner_id=? LIMIT 1', [project.folderId,project.ownerId])
+          if (!folders.length) return null
+        }
+        await connection.execute('INSERT INTO projects (id,owner_id,name,initial_prompt,status,created_at,updated_at,deleted_at) VALUES (?,?,?,?,?,?,?,?)', [project.id,project.ownerId,project.name,project.initialPrompt,project.status,project.createdAt,project.updatedAt,project.deletedAt])
+        if (project.folderId) await connection.execute('INSERT INTO project_folders (project_id,folder_id,assigned_at) VALUES (?,?,?)', [project.id,project.folderId,project.updatedAt])
+        return project
+      })
     },
     async updateProject(userId, projectId, name, at) {
       const [result] = await pool.execute('UPDATE projects SET name=?,updated_at=? WHERE id=? AND owner_id=? AND deleted_at IS NULL', [name,at,projectId,userId])
       if (!result.affectedRows) return null
-      const [rows] = await pool.execute('SELECT * FROM projects WHERE id=? AND owner_id=? AND deleted_at IS NULL LIMIT 1', [projectId,userId])
+      const [rows] = await pool.execute('SELECT p.*, pf.folder_id FROM projects p LEFT JOIN project_folders pf ON pf.project_id=p.id WHERE p.id=? AND p.owner_id=? AND p.deleted_at IS NULL LIMIT 1', [projectId,userId])
       return projectRow(rows[0]) || null
+    },
+    async assignProjectToFolder(userId, projectId, folderId, at) {
+      return transaction(async connection => {
+        const [projects] = await connection.execute('SELECT * FROM projects WHERE id=? AND owner_id=? AND deleted_at IS NULL FOR UPDATE', [projectId,userId])
+        if (!projects.length) return null
+        if (folderId) {
+          const [folders] = await connection.execute('SELECT id FROM folders WHERE id=? AND owner_id=? LIMIT 1', [folderId,userId])
+          if (!folders.length) return null
+          await connection.execute('INSERT INTO project_folders (project_id,folder_id,assigned_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE folder_id=VALUES(folder_id),assigned_at=VALUES(assigned_at)', [projectId,folderId,at])
+        } else await connection.execute('DELETE FROM project_folders WHERE project_id=?', [projectId])
+        await connection.execute('UPDATE projects SET updated_at=? WHERE id=? AND owner_id=? AND deleted_at IS NULL', [at,projectId,userId])
+        const [rows] = await connection.execute('SELECT p.*, pf.folder_id FROM projects p LEFT JOIN project_folders pf ON pf.project_id=p.id WHERE p.id=? AND p.owner_id=? AND p.deleted_at IS NULL LIMIT 1', [projectId,userId])
+        return projectRow(rows[0]) || null
+      })
     },
     async deleteProject(userId, projectId, at) {
       return transaction(async connection => {
@@ -90,7 +149,7 @@ export async function createMysqlStorage(databaseUrl, mysqlModule) {
         return { ...projectRow(projects[0]), deletedAt: at, updatedAt: at }
       })
     },
-    async getOwnedProject(userId, projectId) { const [rows] = await pool.execute('SELECT * FROM projects WHERE id=? AND owner_id=? AND deleted_at IS NULL LIMIT 1', [projectId,userId]); return projectRow(rows[0]) || null },
+    async getOwnedProject(userId, projectId) { const [rows] = await pool.execute('SELECT p.*, pf.folder_id FROM projects p LEFT JOIN project_folders pf ON pf.project_id=p.id WHERE p.id=? AND p.owner_id=? AND p.deleted_at IS NULL LIMIT 1', [projectId,userId]); return projectRow(rows[0]) || null },
     async getProjectData(projectId) {
       const [[files],[messages],[runs],[snapshots]] = await Promise.all([
         pool.execute('SELECT * FROM project_files WHERE project_id=? ORDER BY path', [projectId]),

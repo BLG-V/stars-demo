@@ -1,146 +1,58 @@
-# Design System Master File
+# Stars 设计系统
 
-> **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
-> If that file exists, its rules **override** this Master file.
-> If not, strictly follow the rules below.
+本文件描述本轮本地科技工作台 UI，实现依据为 `stars-demo/src/styles.css` 后部的 cool-slate 主题覆盖层。Atoms 截图仅作为布局、层级和交互参考；品牌、文案、SVG 与实现均为 Stars。公开页和认证弹层保留独立视觉层；此前像素和暖色方案作为历史记录，不作为本轮组件约束。本轮主题和目录导入尚未部署，线上仍为暖色版 `20261024T093929Z-workbench`。
 
----
+前批公网工作台 10 项烟测见 [生产验收记录](../../docs/qa/production-workbench-2026-10-24.md)，不能代替本轮附件和科技主题验收。本轮结果见 [附件工作台回归](../../docs/qa/workbench-attachments-2026-10-24.md)，不包含真实 SMTP、Cloudflare、麦克风或真实模型验收。
 
-**Project:** Stars
-**Generated:** 2026-10-22 15:40:38
-**Category:** AI/Chatbot Platform
-**Design Dials:** Motion 2/10 (Reduced / Functional) | Density 9/10 (Dense / Pixel Workbench)
+## 色彩与 token
 
----
+沿用既有 `--pixel-*` 名称以兼容组件引用；名称中的 lime/blue 不再表示原像素主题颜色，不另建一套未使用的 token。
 
-## Global Rules
+| 用途 | CSS token | 当前值 |
+| --- | --- | --- |
+| 雾灰画布 | `--pixel-bg` | `#F5F6F8` |
+| 冷白卡片/容器 | `--pixel-surface` / `--pixel-panel` | `#FEFEFF` |
+| 深一层容器 | `--pixel-panel-strong` | `#EEF0F4` |
+| 普通边框 | `--pixel-border` | `#E6E8EE` |
+| 强边框 | `--pixel-border-bright` | `#CDD3DE` |
+| 主操作/激活 | `--pixel-lime` / `--pixel-border-active` / `--pixel-blue` | `#4467F5` |
+| 次级信息 | `--pixel-cyan` | `#536079` |
+| 次级强调 | `--pixel-magenta` | `#7868AA` |
+| 正文 | `--pixel-text` | `#202632` |
+| 次要文字 | `--pixel-muted` | `#657084` |
+| 弱信息 | `--pixel-subtle` | `#657084` |
+| 错误/警告 | `--pixel-danger` / `--pixel-warning` | `#BB3F4C` / `#966418` |
+| 卡片阴影 | `--pixel-shadow` | `0 2px 8px rgba(32,38,50,.04), 0 12px 28px -16px rgba(32,38,50,.12)` |
 
-### Color Palette
+背景使用平整雾灰表面，不显示网格或装饰渐变；层次由冷白面板、细边框和柔和阴影表达。蓝色用于操作、焦点和当前步骤，弱状态使用中性灰；不增加图表、虚构数据或外部素材。公开导航和双栏注册弹层保留独立蓝色强调 `#4267FF`。
 
-| Role | Hex | CSS Variable |
-|------|-----|--------------|
-| Primary | `#CCFF00` | `--pixel-lime` |
-| On Primary | `#050505` | `--pixel-bg` |
-| Secondary | `#243DFF` | `--pixel-blue` |
-| Accent/CTA | `#20C8FF` | `--pixel-cyan` |
-| Status | `#FF1493` | `--pixel-magenta` |
-| Background | `#050505` | `--pixel-bg` |
-| Foreground | `#F3F5F2` | `--pixel-text` |
-| Card | `#10121A` | `--pixel-panel` |
-| Muted | `#8A91A3` | `--pixel-muted` |
-| Border | `#202A52` | `--pixel-border` |
-| Destructive | `#FF5C5C` | `--pixel-danger` |
-| Hard Shadow | `4px 4px 0 rgba(0,0,0,.6)` | `--pixel-shadow` |
+## 布局与排版
 
-**Color Notes:** The selected reference theme is lime-on-black with Royal Blue structure. Cyan and magenta are reserved for secondary information and status accents.
+- 桌面 `.app-shell` 外距与列间距均为 16px。侧栏宽 240px，`position:sticky; top:16px`，高度 `calc(100vh - 32px)`；20px 圆角、细边框、柔和阴影及背景模糊形成独立浮动面板。
+- 主内容宽度可收缩；顶部上下文栏为 58px 高、16px 圆角。Composer 最大宽度 760px、18px 圆角；工作台内容卡片以约 16px 圆角和低对比阴影组织层级。
+- 工作台标题、正文与表单使用 Avenir Next / Segoe UI / Microsoft YaHei / sans-serif；首页主标题为 40px、600 字重，正文与控件以 12–14px 组织密度。代码保持等宽字体；不请求外部字体。
+- 880px 以下缩小外距与侧栏；640px 以下工作台单列，侧栏回落为顶部面板，外距 10px、面板圆角 18px。项目行、文件区和预览不可造成页面横向溢出。
+- 移动顶部面板保留文件夹创建和账户操作；文件夹按钮、管理菜单操作与退出按钮至少 44px 高。文件夹管理菜单在列表内展开，账户菜单从卡片下方弹出。
+- 未登录公开页使用独立 `.public-shell`：顶部 Stars 导航、Agent 头像、居中标题和 Composer、能力/统计/Agents/FAQ/页脚；登录后显示工作区导航、项目与运行信息。
 
-### Stars Pixel Override
+## 当前组件与状态
 
-The current Stars workbench uses the pixel tokens above as the source of truth. Components are rectangular (`border-radius: 0`), use 1px borders, and use hard offset shadows only. Hover/focus/selected states use `--pixel-lime`; workflow connectors are dashed Royal Blue lines; progress is rendered as discrete segments. The older rounded-card examples below are historical generic guidance and do not apply to `stars-demo/src/styles.css`.
+- 文件夹支持创建、重命名、删除和项目归类。删除只移除文件夹与归类关系，项目回到未分类；管理菜单可通过悬停或键盘聚焦出现，移动端直接可见。
+- “最近项目”按 `updatedAt` 倒序显示最近 8 项；选择文件夹筛选个人项目。项目行提供文件夹选择、重命名和删除反馈。
+- Composer 的“添加”菜单分别提供上传文件、上传文件夹。最多 10 个文本附件，每个不超过 32 KiB；格式白名单、内容检查和合计 4,000 字符上限在前端执行。目录保留相对路径并跳过隐藏项、依赖/构建目录、锁文件和重复项，显示导入与跳过结果。附件以可移除条目显示，文本合并到当前需求；不提供二进制上传或原文件存储，合并文本会随项目需求/消息持久化。
+- 附件菜单使用 260px 宽、12px 圆角和至少 44px 的操作行；移动工作台为 244px 宽和 48px 操作行。菜单按视口剩余空间向上或向下展开，并限制可用高度；支持方向键、Home/End、Escape、Tab 和外部点击。公开页与工作台 Composer 均允许菜单超出卡片显示。导入期间禁止重复导入、提交及切换项目等冲突操作；不支持目录选择时说明原因并保留文件多选。
+- 语音按钮使用浏览器 Speech Recognition，识别结果写入可编辑需求文本；包含开始/停止、权限拒绝、不支持与失败提示，不保存原始音频。浏览器可能使用自己的远程识别服务，不能表述为完全离线处理。
+- 账户卡片显示真实已登录邮箱，打开会话菜单并提供退出；退出复用后端会话撤销，前端清空项目/文件夹等状态。未登录时该入口打开登录弹层。
+- 注册弹层采用白色双栏：左侧验证码表单，右侧 Stars 蓝色价值面板；760px 以下上下堆叠。验证码倒计时、错误与发送状态必须可读。真实邮件服务未配置时不得显示已发送成功。
+- 生成流程保留计划确认、候选差异批准/拒绝、持久化时间线、预览错误、文件编辑和版本恢复；视觉状态以真实 API 结果驱动。
 
-### Typography
+## 交互与可访问性
 
-- **Heading Font:** Roboto Mono / Courier New
-- **Body Font:** Roboto Mono / Courier New
-- **Mood:** hard-edged, technical, dense, scan-friendly, developer utility
-- **External fonts:** none by default; use the local fallback stack to keep the preview deterministic.
+- 圆角输入、按钮和菜单使用约 8–12px 半径；主操作色为蓝色。hover/focus/active/disabled/loading/error 均需有可辨文字或视觉状态。
+- 键盘 `focus-visible` 使用 2px 主操作色轮廓与 3px 偏移；对话框、菜单、验证码和文件选择具备可访问名称。
+- 动画以 150–180ms 功能反馈为主；`prefers-reduced-motion` 关闭非必要动画。不要为交互添加会掩盖真实失败的成功动效。
+- 图标使用当前 SVG 图标集，不引入 Atoms 品牌资产。附件、语音、账户和文件夹能力不扩大模型执行、数据库或预览权限。
 
-**CSS Import:** None. Use the local monospace fallback stack so the workbench does not depend on external font requests.
+## 验证边界
 
-### Spacing Variables
-
-*Density: 8/10 — Dense / Dashboard*
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--space-xs` | `2px` / `0.125rem` | Tight gaps |
-| `--space-sm` | `4px` / `0.25rem` | Icon gaps, inline spacing |
-| `--space-md` | `8px` / `0.5rem` | Standard padding |
-| `--space-lg` | `12px` / `0.75rem` | Section padding |
-| `--space-xl` | `16px` / `1rem` | Large gaps |
-| `--space-2xl` | `24px` / `1.5rem` | Section margins |
-| `--space-3xl` | `32px` / `2rem` | Hero padding |
-
-### Pixel Component Rules
-
-- All components have square corners (`border-radius: 0`) and 1px borders.
-- Resting borders use `--pixel-border`; hover, focus and selected states use `--pixel-lime`.
-- Use `--pixel-shadow` or a smaller hard offset shadow. Never use blurred box-shadows.
-- Primary button press feedback is `transform: translate(1px, 1px)`.
-- The workflow connector is dashed Royal Blue; current step is a solid lime block; progress is segmented.
-- Keep hover, focus-visible, active, disabled, loading, error and reduced-motion states legible.
-
----
-
-## Component Specs
-
-Component-level selector and state details live in `stars-demo/src/styles.css`; that file is the implementation source of truth for this theme.
-
----
-
-## Style Guidelines
-
-**Style:** AI-Native UI
-
-**Keywords:** Chatbot, conversational, voice, assistant, agentic, ambient, minimal chrome, streaming text, AI interactions
-
-**Best For:** AI products, chatbots, voice assistants, copilots, AI-powered tools, conversational interfaces
-
-**Key Effects:** Typing indicators (3-dot pulse), streaming text animations, pulse animations, context cards, smooth reveals
-
-### Page Pattern
-
-**Pattern Name:** Product Demo + Features
-
-- **Conversion Strategy:** Use an interactive demo only when it explains value better than static media. Provide captions, transcript, visible play/pause controls, and a non-video fallback; do not autoplay under reduced motion. Pause media when offscreen or hidden and keep the final product state available as static content.
-- **CTA Placement:** Video center + CTA right/bottom
-- **Section Order:** Hero > Product video/mockup (center) > Feature breakdown per section > Comparison (optional) > CTA
-
----
-
-## Motion
-
-**Stagger List** (Standard) — Trigger: load or scroll | Duration: 300-450ms | Easing: `back.out(1.4)`
-
-```js
-gsap.from('.grid-item', { opacity: 0, scale: 0.92, y: 16, duration: 0.4, stagger: { each: 0.06, from: 'start', grid: 'auto' }, ease: 'back.out(1.4)' });
-```
-
-**Framework notes:** grid: 'auto' lets GSAP infer rows/columns from a CSS grid layout for a natural wave stagger; Use matchMedia('(prefers-reduced-motion: reduce)') to skip non-essential motion and render the final state immediately
-
-- ✅ Combine with from: 'center' for a bento-grid layout to draw the eye inward first
-- ❌ Don't use back.out on dense data tables; the overshoot reads as sloppy on informational UI
-- ⚡ Group DOM writes; avoid interleaving layout reads (getBoundingClientRect) between staggered tweens
-
----
-
-## Anti-Patterns (Do NOT Use)
-
-- ❌ Heavy chrome
-- ❌ Slow response feedback
-
-### Additional Forbidden Patterns
-
-- ❌ **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
-- ❌ **Missing cursor:pointer** — All clickable elements must have cursor:pointer
-- ❌ **Layout-shifting hovers** — Avoid scale transforms that shift layout
-- ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio
-- ❌ **Instant state changes** — Always use transitions (150-300ms)
-- ❌ **Invisible focus states** — Focus states must be visible for a11y
-
----
-
-## Pre-Delivery Checklist
-
-Before delivering any UI code, verify:
-
-- [ ] No emojis used as icons (use SVG instead)
-- [ ] All icons from consistent icon set (Heroicons/Lucide)
-- [ ] `cursor-pointer` on all clickable elements
-- [ ] Hover states with smooth transitions (150-300ms)
-- [ ] Light mode: text contrast 4.5:1 minimum
-- [ ] Focus states visible for keyboard navigation
-- [ ] `prefers-reduced-motion` respected
-- [ ] Responsive: 375px, 768px, 1024px, 1440px
-- [ ] No content hidden behind fixed navbars
-- [ ] No horizontal scroll on mobile
+本轮本地回归覆盖 375/768/1280 视口、公开与登录布局、文件和目录选择、键盘菜单、嵌套路径/过滤/限制/重复/移除、规划上下文、文件夹 CRUD/归类/最近项目、语音降级、账户菜单、验证码、运行与版本交互。前批公网 MySQL 烟测与本轮本地验收分别记录；本轮尚未部署，未调用真实模型，也未复测真实 SMTP、Cloudflare 或麦克风。验收范围以对应报告为准。

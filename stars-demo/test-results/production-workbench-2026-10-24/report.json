@@ -1,0 +1,25 @@
+{
+  "testedAt": "2026-10-24T09:48:46.311103+00:00",
+  "baseUrl": "https://39.107.41.101",
+  "result": "passed",
+  "stage": "complete",
+  "checks": [
+    "valid-https-mysql-no-stub",
+    "anonymous-folders-projects-rejected",
+    "normal-ui-login-secure-session",
+    "folder-create-rename-and-project-assignment-survive-refresh",
+    "recent-eight-to-all-nine",
+    "attachment-select-remove-and-voice-entry",
+    "explicit-new-project-clears-current-and-keeps-folder-plan-only",
+    "second-user-project-folder-isolation",
+    "mobile-folder-account-no-overflow-and-folder-delete-unassigns",
+    "both-ui-logouts-and-no-generation-or-email-posts"
+  ],
+  "realModelCalls": 0,
+  "blockedRequests": [],
+  "browserErrorCount": 0,
+  "temporaryResourceCounts": {
+    "projects": 10,
+    "folders": 2
+  }
+}

@@ -15,7 +15,7 @@ function fakeMysql({ failOn = '', duplicateEmail = false, previousFiles = [{ id:
     if (duplicateEmail && sql.startsWith('INSERT INTO users')) throw Object.assign(new Error('private SQL details'), { code: 'ER_DUP_ENTRY' })
     if (duplicateEmail && sql.startsWith('SELECT id FROM users WHERE email=')) return [[{ id: 'existing-user' }]]
     if (sql.startsWith('SELECT * FROM project_files')) return [previousFiles]
-    if (sql.startsWith('SELECT * FROM projects')) return [[{ id: 'p1', owner_id: 'u1', name: 'Owned', initial_prompt: '', status: 'ready', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', deleted_at: null }]]
+    if (sql.startsWith('SELECT p.*, pf.folder_id FROM projects p')) return [[{ id: 'p1', owner_id: 'u1', name: 'Owned', initial_prompt: '', status: 'ready', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', deleted_at: null }]]
     return [[]]
   }
   const connection = {

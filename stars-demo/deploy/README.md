@@ -16,7 +16,7 @@ Run `npm ci`, `python -m pip install -r test/requirements.txt`, and `python -m p
 
 `npm run lint` checks all application, server, and JavaScript test files. `npm run typecheck` uses strict TypeScript `checkJs` for the actual boundary schemas and build/lint configuration; it does not claim strict typing of the existing JSX application or storage implementations. Zod validates the API request schemas at runtime. `npm run format:check` checks package files, tool configuration, this deployment guide, and CI configuration; it deliberately does not impose a reformat on unrelated application sources.
 
-The workspace currently has no Git repository metadata, so `.env` tracking or historical publication cannot be verified with Git. `.gitignore` excludes `.env` and `.env.*` while allowing `.env.example`. A local ignored runtime file alone does not establish a leak. Do not commit `.env`; rotate any known exposed credentials through a coordinated operational change rather than deleting a working configuration.
+The workspace is a Git repository associated with `BLG-V/stars-demo`. `.gitignore` excludes `.env` and `.env.*` while allowing `.env.example`; verify tracking with Git without printing secret contents. An ignored local runtime file alone does not establish that credentials were published or that history is clean. Do not commit `.env`; rotate any known exposed credentials through a coordinated operational change rather than deleting a working configuration.
 
 ## Stars-only encrypted backups
 
