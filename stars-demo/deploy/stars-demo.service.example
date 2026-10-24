@@ -1,0 +1,27 @@
+[Unit]
+Description=Stars Demo API
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/stars-demo-release
+EnvironmentFile=/opt/stars-demo-release/.env
+Environment=NODE_ENV=production
+Environment=PORT=8787
+Environment=COOKIE_SECURE=true
+Environment=ALLOW_STUB_MODEL=false
+# Verify the Node path and create this unprivileged account before installing.
+ExecStart=/usr/bin/node /opt/stars-demo-release/server/index.mjs
+User=stars
+Group=stars
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

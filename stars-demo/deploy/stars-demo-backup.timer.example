@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily encrypted Stars Demo database backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+RandomizedDelaySec=20m
+Persistent=true
+Unit=stars-demo-backup.service
+
+[Install]
+WantedBy=timers.target

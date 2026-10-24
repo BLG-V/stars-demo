@@ -1,0 +1,21 @@
+{
+  "phase": "verify",
+  "testedAt": "2026-10-24T01:16:18.261831+00:00",
+  "baseUrl": "https://39.107.41.101",
+  "result": "passed",
+  "stage": "complete",
+  "projectId": "325c951c-a9f5-4a21-9798-699d16c910c3",
+  "runId": "9fed43af-7db7-400a-8640-6de213e98a62",
+  "fileHashesMatch": true,
+  "checks": [
+    "session-after-restart",
+    "files-after-restart",
+    "history-after-restart",
+    "preview-after-restart"
+  ],
+  "distinctRunPlansSubmitted": 0,
+  "userIds": [
+    "54bb82a2-3c31-4fb5-afe9-4fe023e04242",
+    "bdd91f24-7965-47c4-9bdb-7760923aa481"
+  ]
+}

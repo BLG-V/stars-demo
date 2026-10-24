@@ -1,0 +1,17 @@
+[Unit]
+Description=Encrypted backup of the Stars Demo MySQL schema
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/stars-demo-release/deploy/backup_stars.py
+TimeoutStartSec=300
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/stars-demo
+

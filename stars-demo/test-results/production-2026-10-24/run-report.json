@@ -1,0 +1,43 @@
+{
+  "phase": "run",
+  "testedAt": "2026-10-24T01:14:31.177637+00:00",
+  "baseUrl": "https://39.107.41.101",
+  "result": "passed",
+  "stage": "complete",
+  "previousUnstartedPlans": 1,
+  "projectId": "325c951c-a9f5-4a21-9798-699d16c910c3",
+  "runId": "9fed43af-7db7-400a-8640-6de213e98a62",
+  "userIds": [
+    "54bb82a2-3c31-4fb5-afe9-4fe023e04242",
+    "bdd91f24-7965-47c4-9bdb-7760923aa481"
+  ],
+  "generatedFiles": [
+    "app.js",
+    "index.html",
+    "styles.css"
+  ],
+  "fileHashes": {
+    "app.js": "515c6a762b3cb3f91db165420f67bb97f403d17da573c3b682c92f4cf81e1320",
+    "index.html": "05d5f6201ea9048cb3ed3c9ea5b35d87355b35ef2b4d1647f2e279d505eedc79",
+    "styles.css": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "distinctRunPlansSubmitted": 1,
+  "model": "qwen3.8-flash",
+  "providerCallCountRequiresServerEvidence": true,
+  "snapshots": 2,
+  "checks": [
+    "HTTPS",
+    "mysql-health",
+    "secure-session",
+    "plan-gate",
+    "candidate-gate",
+    "review-reload",
+    "idempotent-approval",
+    "real-preview-interaction",
+    "snapshot-diff",
+    "protective-restore",
+    "refresh",
+    "responsive",
+    "ownership-401-404"
+  ]
+}

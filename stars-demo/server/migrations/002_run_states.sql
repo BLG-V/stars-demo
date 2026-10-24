@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS run_states (
+  run_id CHAR(36) PRIMARY KEY,
+  payload JSON NOT NULL,
+  CONSTRAINT run_states_run_fk FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
